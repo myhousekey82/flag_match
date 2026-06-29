@@ -1094,6 +1094,7 @@
             recognition.continuous = true;  // Keep microphone open continuously
             recognition.interimResults = true;
             recognition.lang = 'en-US';
+            recognition.maxAlternatives = 5;  // Capture ranked alternatives (e.g. "Haiti" behind "Katie")
 
             recognition.onstart = function() {
                 isListening = true;
@@ -1108,15 +1109,20 @@
                 if (!selectedFlag) return;
                 
                 const resultIndex = event.results.length - 1;
-                const transcript = event.results[resultIndex][0].transcript;
+                const result = event.results[resultIndex];
+                const transcript = result[0].transcript;
                 
                 document.getElementById('transcriptText').textContent = transcript;
                 
                 // When final result is received and flag is selected
-                if (event.results[resultIndex].isFinal && selectedFlag) {
-                    const spokenText = transcript.trim();
+                if (result.isFinal && selectedFlag) {
+                    // Collect every ranked alternative the engine returned
+                    const alternatives = [];
+                    for (let i = 0; i < result.length; i++) {
+                        alternatives.push(result[i].transcript.trim());
+                    }
                     setTimeout(() => {
-                        checkVoiceMatch(spokenText);
+                        checkVoiceMatch(alternatives);
                     }, 300);
                 }
             };
@@ -1232,39 +1238,125 @@
                 .replace(/[^a-z]/g, '');
         }
 
-        function checkVoiceMatch(spokenText) {
+        // Edit distance for fuzzy/phonetic near-misses (Haiti/Katie, Chile/chilly)
+        function levenshtein(a, b) {
+            const m = a.length, n = b.length;
+            if (m === 0) return n;
+            if (n === 0) return m;
+            const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(
+                        dp[i - 1][j] + 1,
+                        dp[i][j - 1] + 1,
+                        dp[i - 1][j - 1] + cost
+                    );
+                }
+            }
+            return dp[m][n];
+        }
+
+        // Abbreviations / official-name variations (spoken -> normalized country)
+        const countryVariations = {
+            'usa': 'unitedstatesofamerica',
+            'unitedstates': 'unitedstatesofamerica',
+            'america': 'unitedstatesofamerica',
+            'uk': 'unitedkingdom',
+            'britain': 'unitedkingdom',
+            'greatbritain': 'unitedkingdom',
+            'drc': 'democraticrepublicofthecongo',
+            'car': 'centralafricanrepublic',
+            'uae': 'unitedarabemirates',
+            'macedonia': 'northmacedonia'
+        };
+
+        // Known mishears / homophones keyed by normalized country name.
+        // Each list is what the speech engine commonly returns instead.
+        const countryHomophones = {
+            'haiti': ['katie', 'hades', 'hayti', 'hatey', 'hottie', 'hayd'],
+            'chile': ['chilly', 'chili', 'chillie', 'shelly'],
+            'china': ['shyna', 'kina'],
+            'oman': ['amman', 'omon', 'common', 'oman'],
+            'qatar': ['cutter', 'guitar', 'gutter', 'quarter', 'cather'],
+            'niger': ['nigar', 'nieger', 'nigir', 'nature'],
+            'laos': ['louse', 'lao', 'house', 'lous'],
+            'iraq': ['irock', 'irag', 'iraq', 'erock'],
+            'iran': ['eron', 'iran', 'aaron'],
+            'ghana': ['gonna', 'gana', 'guana', 'gunner'],
+            'peru': ['perro', 'peru', 'pero'],
+            'chad': ['shad', 'chat'],
+            'mali': ['molly', 'mally', 'maui'],
+            'togo': ['tobgo', 'toga', 'togo', 'togho'],
+            'fiji': ['fee gee', 'figi', 'fishy'],
+            'cuba': ['cuban', 'cooba', 'cuba'],
+            'kenya': ['kenny', 'kenya', 'kanya'],
+            'libya': ['libia', 'liddya', 'libya'],
+            'yemen': ['lemon', 'yeoman', 'yemen', 'lemen'],
+            'spain': ['spane', 'spain'],
+            'india': ['indya', 'indiana'],
+            'samoa': ['summoa', 'some more', 'samoa'],
+            'tonga': ['tanga', 'thunder', 'tonga'],
+            'nauru': ['no ru', 'nauru', 'nehru'],
+            'palau': ['pa lao', 'pillow', 'palau'],
+            'belize': ['bee lease', 'please', 'belise', 'belize'],
+            'gabon': ['gabbon', 'gaboon', 'gone'],
+            'benin': ['ben in', 'bening', 'benin'],
+            'sudan': ['sue dan', 'sedan', 'sudan'],
+            'guyana': ['ghana', 'guiana', 'gee ana']
+        };
+
+        function checkVoiceMatch(spokenAlternatives) {
             if (!selectedFlag) return;
 
-            const normalized = normalizeCountryName(spokenText);
-            
+            // Accept either a single string or a list of ranked alternatives
+            const alternatives = Array.isArray(spokenAlternatives)
+                ? spokenAlternatives
+                : [spokenAlternatives];
+
             // Find the country object for the selected flag
             const selectedCountry = remainingCountries.find(c => c.name === selectedFlag);
             if (!selectedCountry) return;
 
             const targetNormalized = normalizeCountryName(selectedCountry.name);
-            
-            // Check for exact match or common variations
-            const variations = {
-                'usa': 'unitedstatesofamerica',
-                'unitedstates': 'unitedstatesofamerica',
-                'uk': 'unitedkingdom',
-                'britain': 'unitedkingdom',
-                'greatbritain': 'unitedkingdom',
-                'drc': 'democraticrepublicofthecongo',
-                'car': 'centralafricanrepublic',
-                'uae': 'unitedarabemirates',
-                'macedonia': 'northmacedonia'
-            };
+            const targetWithVariations = countryVariations[targetNormalized] || targetNormalized;
+            const homophones = countryHomophones[targetNormalized] || [];
 
-            const normalizedWithVariations = variations[normalized] || normalized;
-            const targetWithVariations = variations[targetNormalized] || targetNormalized;
+            // Allow a slightly larger edit distance for longer names
+            const fuzzyThreshold = targetWithVariations.length >= 8 ? 3 : 2;
 
-            // Check if it's a match
-            const isMatch = normalizedWithVariations === targetWithVariations ||
-                           normalizedWithVariations.includes(targetWithVariations) ||
-                           targetWithVariations.includes(normalizedWithVariations);
+            let matched = false;
 
-            if (isMatch) {
+            for (const spoken of alternatives) {
+                const normalized = normalizeCountryName(spoken);
+                if (!normalized) continue;
+                const normalizedWithVariations = countryVariations[normalized] || normalized;
+
+                // 1) Exact / containment match
+                if (normalizedWithVariations === targetWithVariations ||
+                    normalizedWithVariations.includes(targetWithVariations) ||
+                    targetWithVariations.includes(normalizedWithVariations)) {
+                    matched = true;
+                    break;
+                }
+
+                // 2) Known homophone / mishear match
+                if (homophones.some(h => normalizeCountryName(h) === normalized)) {
+                    matched = true;
+                    break;
+                }
+
+                // 3) Fuzzy match (Haiti/Katie, Chile/chilly, etc.)
+                if (levenshtein(normalizedWithVariations, targetWithVariations) <= fuzzyThreshold) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            const spokenText = alternatives[0];
+
+            if (matched) {
                 // Correct!
                 selectedName = selectedCountry.name;
                 showSpeechResult(true, spokenText);
