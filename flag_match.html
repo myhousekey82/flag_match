@@ -48,36 +48,6 @@
             flex-wrap: wrap;
         }
 
-        .voice-toggle {
-            background: white;
-            color: #667eea;
-            border: 3px solid #e5e7eb;
-            padding: 10px 20px;
-            font-size: 1em;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .voice-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        .voice-toggle.active {
-            background: #10b981;
-            color: white;
-            border-color: #10b981;
-        }
-
-        .voice-toggle .status-text {
-            font-weight: bold;
-        }
-
         .continent-btn {
             background: white;
             color: #667eea;
@@ -273,67 +243,6 @@
             }
         }
 
-        .speech-transcript {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 30px 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            z-index: 1500;
-            text-align: center;
-            display: none;
-        }
-
-        .speech-transcript.show {
-            display: block;
-            animation: popIn 0.3s ease;
-        }
-
-        .speech-transcript .status {
-            font-size: 1.2em;
-            color: #667eea;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .speech-transcript .text {
-            font-size: 1.5em;
-            color: #374151;
-            min-width: 200px;
-        }
-
-        .speech-result {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 30px 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            z-index: 1500;
-            text-align: center;
-            display: none;
-        }
-
-        .speech-result.show {
-            display: block;
-            animation: popIn 0.3s ease;
-        }
-
-        .speech-result .result-icon {
-            font-size: 3em;
-            margin-bottom: 10px;
-        }
-
-        .speech-result .result-text {
-            font-size: 1.3em;
-            color: #374151;
-        }
-
         .flag-modal {
             display: none;
             position: fixed;
@@ -516,12 +425,6 @@
         <p>Match each flag to its country!</p>
     </div>
 
-    <div style="display: flex; justify-content: center; margin-bottom: 15px;">
-        <button class="voice-toggle" id="voiceToggle" onclick="toggleContinuousListening()">
-            🎤 Continuous Listening: <span class="status-text" id="voiceStatus">OFF</span>
-        </button>
-    </div>
-
     <div class="continent-selector">
         <button class="continent-btn active" data-continent="Africa" onclick="toggleContinent('Africa')">🌍 Africa</button>
         <button class="continent-btn active" data-continent="Asia" onclick="toggleContinent('Asia')">🌏 Asia</button>
@@ -571,16 +474,6 @@
             <button class="flag-modal-close" onclick="closeFlagModal()">×</button>
             <div class="flag-modal-flag" id="modalFlag"></div>
         </div>
-    </div>
-
-    <div class="speech-transcript" id="speechTranscript">
-        <div class="status">🎤 Listening...</div>
-        <div class="text" id="transcriptText">Say the country name</div>
-    </div>
-
-    <div class="speech-result" id="speechResult">
-        <div class="result-icon" id="resultIcon"></div>
-        <div class="result-text" id="resultText"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -800,8 +693,6 @@
         let wrongGuesses = 0;
         let remainingCountries = [];
         let shuffledFlagOrder = []; // Store the initial shuffle order
-        let continuousListeningMode = false;
-        let isListening = false;
 
         function toggleContinent(continent) {
             const index = selectedContinents.indexOf(continent);
@@ -926,11 +817,6 @@
             if (selectedFlag === name) {
                 flagEl.classList.remove('selected');
                 selectedFlag = null;
-                
-                // Hide transcript when deselecting
-                if (continuousListeningMode) {
-                    document.getElementById('speechTranscript').classList.remove('show');
-                }
                 return;
             }
 
@@ -943,12 +829,8 @@
             selectedFlag = name;
             flagEl.classList.add('selected');
 
-            // In continuous mode, show transcript if listening
-            if (continuousListeningMode && isListening) {
-                document.getElementById('speechTranscript').classList.add('show');
-                document.getElementById('transcriptText').textContent = 'Listening...';
-            } else if (selectedName !== null) {
-                // If not using voice and a name is already selected, check match
+            // If a name is already selected, check match
+            if (selectedName !== null) {
                 checkMatch();
             }
         }
@@ -1080,346 +962,6 @@
 
         function closeFlagModal() {
             document.getElementById('flagModal').classList.remove('show');
-        }
-
-        // Speech Recognition
-        let recognition = null;
-        if ('webkitSpeechRecognition' in window) {
-            recognition = new webkitSpeechRecognition();
-        } else if ('SpeechRecognition' in window) {
-            recognition = new SpeechRecognition();
-        }
-
-        if (recognition) {
-            recognition.continuous = true;  // Keep microphone open continuously
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
-            recognition.maxAlternatives = 5;  // Capture ranked alternatives (e.g. "Haiti" behind "Katie")
-
-            recognition.onstart = function() {
-                isListening = true;
-                if (selectedFlag) {
-                    document.getElementById('speechTranscript').classList.add('show');
-                    document.getElementById('transcriptText').textContent = 'Listening...';
-                }
-            };
-
-            recognition.onresult = function(event) {
-                // In continuous mode, only process if a flag is selected
-                if (!selectedFlag) return;
-                
-                const resultIndex = event.results.length - 1;
-                const result = event.results[resultIndex];
-                const transcript = result[0].transcript;
-                
-                document.getElementById('transcriptText').textContent = transcript;
-                
-                // When final result is received and flag is selected
-                if (result.isFinal && selectedFlag) {
-                    // Collect every ranked alternative the engine returned
-                    const alternatives = [];
-                    for (let i = 0; i < result.length; i++) {
-                        alternatives.push(result[i].transcript.trim());
-                    }
-                    setTimeout(() => {
-                        checkVoiceMatch(alternatives);
-                    }, 300);
-                }
-            };
-
-            recognition.onend = function() {
-                isListening = false;
-                
-                // Only hide transcript if not in continuous mode
-                if (!continuousListeningMode) {
-                    setTimeout(() => {
-                        document.getElementById('speechTranscript').classList.remove('show');
-                    }, 500);
-                } else {
-                    // In continuous mode, if it ends unexpectedly, restart
-                    setTimeout(() => {
-                        if (continuousListeningMode && !isListening) {
-                            try {
-                                recognition.start();
-                            } catch (e) {
-                                console.log('Recognition restart:', e.message);
-                            }
-                        }
-                    }, 100);
-                }
-            };
-
-            recognition.onerror = function(event) {
-                console.error('Speech recognition error:', event.error);
-                
-                // Ignore 'no-speech' and 'aborted' errors in continuous mode - just restart
-                if (continuousListeningMode && (event.error === 'no-speech' || event.error === 'aborted')) {
-                    // Let onend handler restart it
-                    return;
-                }
-                
-                isListening = false;
-                
-                // If permission denied, turn off continuous mode
-                if (event.error === 'not-allowed') {
-                    continuousListeningMode = false;
-                    document.getElementById('voiceToggle').classList.remove('active');
-                    document.getElementById('voiceStatus').textContent = 'OFF';
-                    document.getElementById('speechTranscript').classList.remove('show');
-                    alert('Microphone permission was denied. Please allow microphone access and try again.');
-                }
-            };
-        }
-
-        function toggleContinuousListening() {
-            if (!recognition) {
-                alert('Voice recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
-                return;
-            }
-
-            continuousListeningMode = !continuousListeningMode;
-            const toggleBtn = document.getElementById('voiceToggle');
-            const statusText = document.getElementById('voiceStatus');
-
-            if (continuousListeningMode) {
-                // Turn on continuous listening
-                toggleBtn.classList.add('active');
-                statusText.textContent = 'ON';
-                
-                // Start recognition - it will keep restarting automatically via onend
-                if (!isListening) {
-                    try {
-                        recognition.start();
-                    } catch (e) {
-                        console.log('Recognition start:', e.message);
-                    }
-                }
-            } else {
-                // Turn off continuous listening
-                toggleBtn.classList.remove('active');
-                statusText.textContent = 'OFF';
-                
-                // Stop recognition
-                if (isListening) {
-                    try {
-                        recognition.stop();
-                    } catch (e) {
-                        console.log('Recognition stop:', e.message);
-                    }
-                }
-                
-                // Hide transcript
-                document.getElementById('speechTranscript').classList.remove('show');
-            }
-        }
-
-        function startVoiceRecognition() {
-            if (!recognition) {
-                alert('Voice recognition is not supported in your browser.');
-                return;
-            }
-
-            if (!selectedFlag) return;
-
-            // Only start if not already listening
-            if (!isListening) {
-                try {
-                    recognition.start();
-                } catch (e) {
-                    console.log('Recognition already running');
-                }
-            }
-        }
-
-        function normalizeCountryName(name) {
-            return name.toLowerCase()
-                .replace(/^the\s+/i, '')
-                .replace(/\s+/g, '')
-                .replace(/[^a-z]/g, '');
-        }
-
-        // Edit distance for fuzzy/phonetic near-misses (Haiti/Katie, Chile/chilly)
-        function levenshtein(a, b) {
-            const m = a.length, n = b.length;
-            if (m === 0) return n;
-            if (n === 0) return m;
-            const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
-            for (let j = 0; j <= n; j++) dp[0][j] = j;
-            for (let i = 1; i <= m; i++) {
-                for (let j = 1; j <= n; j++) {
-                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-                    dp[i][j] = Math.min(
-                        dp[i - 1][j] + 1,
-                        dp[i][j - 1] + 1,
-                        dp[i - 1][j - 1] + cost
-                    );
-                }
-            }
-            return dp[m][n];
-        }
-
-        // Abbreviations / official-name variations (spoken -> normalized country)
-        const countryVariations = {
-            'usa': 'unitedstatesofamerica',
-            'unitedstates': 'unitedstatesofamerica',
-            'america': 'unitedstatesofamerica',
-            'uk': 'unitedkingdom',
-            'britain': 'unitedkingdom',
-            'greatbritain': 'unitedkingdom',
-            'drc': 'democraticrepublicofthecongo',
-            'car': 'centralafricanrepublic',
-            'uae': 'unitedarabemirates',
-            'macedonia': 'northmacedonia'
-        };
-
-        // Known mishears / homophones keyed by normalized country name.
-        // Each list is what the speech engine commonly returns instead.
-        const countryHomophones = {
-            'haiti': ['katie', 'hades', 'hayti', 'hatey', 'hottie', 'hayd'],
-            'chile': ['chilly', 'chili', 'chillie', 'shelly'],
-            'china': ['shyna', 'kina'],
-            'oman': ['amman', 'omon', 'common', 'oman'],
-            'qatar': ['cutter', 'guitar', 'gutter', 'quarter', 'cather'],
-            'niger': ['nigar', 'nieger', 'nigir', 'nature'],
-            'laos': ['louse', 'lao', 'house', 'lous'],
-            'iraq': ['irock', 'irag', 'iraq', 'erock'],
-            'iran': ['eron', 'iran', 'aaron'],
-            'ghana': ['gonna', 'gana', 'guana', 'gunner'],
-            'peru': ['perro', 'peru', 'pero'],
-            'chad': ['shad', 'chat'],
-            'mali': ['molly', 'mally', 'maui'],
-            'togo': ['tobgo', 'toga', 'togo', 'togho'],
-            'fiji': ['fee gee', 'figi', 'fishy'],
-            'cuba': ['cuban', 'cooba', 'cuba'],
-            'kenya': ['kenny', 'kenya', 'kanya'],
-            'libya': ['libia', 'liddya', 'libya'],
-            'yemen': ['lemon', 'yeoman', 'yemen', 'lemen'],
-            'spain': ['spane', 'spain'],
-            'india': ['indya', 'indiana'],
-            'samoa': ['summoa', 'some more', 'samoa'],
-            'tonga': ['tanga', 'thunder', 'tonga'],
-            'nauru': ['no ru', 'nauru', 'nehru'],
-            'palau': ['pa lao', 'pillow', 'palau'],
-            'belize': ['bee lease', 'please', 'belise', 'belize'],
-            'gabon': ['gabbon', 'gaboon', 'gone'],
-            'benin': ['ben in', 'bening', 'benin'],
-            'sudan': ['sue dan', 'sedan', 'sudan'],
-            'guyana': ['ghana', 'guiana', 'gee ana']
-        };
-
-        function checkVoiceMatch(spokenAlternatives) {
-            if (!selectedFlag) return;
-
-            // Accept either a single string or a list of ranked alternatives
-            const alternatives = Array.isArray(spokenAlternatives)
-                ? spokenAlternatives
-                : [spokenAlternatives];
-
-            // Find the country object for the selected flag
-            const selectedCountry = remainingCountries.find(c => c.name === selectedFlag);
-            if (!selectedCountry) return;
-
-            const targetNormalized = normalizeCountryName(selectedCountry.name);
-            const targetWithVariations = countryVariations[targetNormalized] || targetNormalized;
-            const homophones = countryHomophones[targetNormalized] || [];
-
-            // Allow a slightly larger edit distance for longer names
-            const fuzzyThreshold = targetWithVariations.length >= 8 ? 3 : 2;
-
-            let matched = false;
-
-            for (const spoken of alternatives) {
-                const normalized = normalizeCountryName(spoken);
-                if (!normalized) continue;
-                const normalizedWithVariations = countryVariations[normalized] || normalized;
-
-                // 1) Exact / containment match
-                if (normalizedWithVariations === targetWithVariations ||
-                    normalizedWithVariations.includes(targetWithVariations) ||
-                    targetWithVariations.includes(normalizedWithVariations)) {
-                    matched = true;
-                    break;
-                }
-
-                // 2) Known homophone / mishear match
-                if (homophones.some(h => normalizeCountryName(h) === normalized)) {
-                    matched = true;
-                    break;
-                }
-
-                // 3) Fuzzy match (Haiti/Katie, Chile/chilly, etc.)
-                if (levenshtein(normalizedWithVariations, targetWithVariations) <= fuzzyThreshold) {
-                    matched = true;
-                    break;
-                }
-            }
-
-            const spokenText = alternatives[0];
-
-            if (matched) {
-                // Correct!
-                selectedName = selectedCountry.name;
-                showSpeechResult(true, spokenText);
-                
-                // Hide transcript and wait for result display
-                setTimeout(() => {
-                    document.getElementById('speechTranscript').classList.remove('show');
-                }, 300);
-                
-                // Wait for result display, then check match to remove items
-                setTimeout(() => {
-                    document.getElementById('speechResult').classList.remove('show');
-                    checkMatch();
-                }, 1500);
-            } else {
-                // Wrong
-                showSpeechResult(false, spokenText, selectedCountry.name);
-                wrongGuesses++;
-                updateScores();
-                
-                // Flash red
-                document.body.classList.add('wrong-flash');
-                setTimeout(() => {
-                    document.body.classList.remove('wrong-flash');
-                }, 300);
-                
-                setTimeout(() => {
-                    document.getElementById('speechResult').classList.remove('show');
-                    // Deselect flag
-                    document.querySelectorAll('.flag-item').forEach(item => {
-                        item.classList.remove('selected');
-                    });
-                    selectedFlag = null;
-                }, 2000);
-            }
-        }
-
-        function showSpeechResult(isCorrect, heard, correctAnswer = null) {
-            const resultDiv = document.getElementById('speechResult');
-            const iconDiv = document.getElementById('resultIcon');
-            const textDiv = document.getElementById('resultText');
-
-            if (isCorrect) {
-                iconDiv.textContent = '✓';
-                iconDiv.style.color = '#10b981';
-                textDiv.innerHTML = `<strong>Correct!</strong><br>I heard: "${heard}"`;
-            } else {
-                iconDiv.textContent = '✗';
-                iconDiv.style.color = '#ef4444';
-                textDiv.innerHTML = `<strong>Not quite!</strong><br>I heard: "${heard}"<br>The answer was: ${correctAnswer}`;
-            }
-
-            resultDiv.classList.add('show');
-            
-            if (!isCorrect) {
-                setTimeout(() => {
-                    resultDiv.classList.remove('show');
-                }, 2500);
-            } else {
-                setTimeout(() => {
-                    resultDiv.classList.remove('show');
-                }, 1500);
-            }
         }
 
         // Close modal on escape key
