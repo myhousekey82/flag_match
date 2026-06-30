@@ -40,6 +40,86 @@
             opacity: 0.9;
         }
 
+        .timer-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .timer-btn {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            border: none;
+            padding: 10px 24px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .timer-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        .timer-btn.running {
+            background: #ef4444;
+            color: white;
+        }
+
+        .timer-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.8em;
+            font-weight: bold;
+            color: white;
+            background: rgba(0, 0, 0, 0.25);
+            padding: 6px 18px;
+            border-radius: 10px;
+            min-width: 130px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .timer-display.penalty-flash {
+            color: #fca5a5;
+        }
+
+        .countdown-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .countdown-overlay.show {
+            display: flex;
+        }
+
+        .countdown-number {
+            font-size: 12em;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 40px rgba(102, 126, 234, 0.9);
+            animation: countdownPulse 1s ease;
+        }
+
+        @keyframes countdownPulse {
+            0% { transform: scale(0.4); opacity: 0; }
+            40% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
         .continent-selector {
             display: flex;
             justify-content: center;
@@ -423,6 +503,14 @@
     <div class="header">
         <h1>🌍 Flag Match Challenge</h1>
         <p>Match each flag to its country!</p>
+        <div class="timer-bar">
+            <button id="timerBtn" class="timer-btn" onclick="startTimedSession()">⏱️ Start Timed Session</button>
+            <div id="timerDisplay" class="timer-display">00:00.0</div>
+        </div>
+    </div>
+
+    <div class="countdown-overlay" id="countdownOverlay">
+        <div class="countdown-number" id="countdownNumber">3</div>
     </div>
 
     <div class="continent-selector">
@@ -465,6 +553,7 @@
         <div class="completion-emoji">🎉</div>
         <h2>Perfect Match!</h2>
         <p>You matched all <span id="totalCountries">0</span> countries!</p>
+        <p id="finalTimeLine" style="display:none;"><strong>⏱️ Time:</strong> <span id="finalTime">00:00.0</span></p>
         <p><strong>Wrong Guesses:</strong> <span id="finalWrong">0</span></p>
         <button onclick="resetGame()">Play Again</button>
     </div>
@@ -694,6 +783,14 @@
         let remainingCountries = [];
         let shuffledFlagOrder = []; // Store the initial shuffle order
 
+        // Timer state
+        const WRONG_PENALTY_MS = 5000; // +5s per wrong match
+        let timerActive = false;       // a timed session is in progress
+        let timerStartMs = 0;          // performance.now() at countdown end
+        let penaltyMs = 0;             // accumulated wrong-match penalties
+        let timerInterval = null;      // setInterval handle for live ticking
+        let finalTimeMs = 0;           // total elapsed (incl. penalties) at finish; ready for future leaderboard
+
         function toggleContinent(continent) {
             const index = selectedContinents.indexOf(continent);
             const button = document.querySelector(`[data-continent="${continent}"]`);
@@ -721,6 +818,116 @@
 
         function getFilteredCountries() {
             return allCountries.filter(c => selectedContinents.includes(c.continent));
+        }
+
+        // ---------- Timer ----------
+        function formatTime(ms) {
+            const totalTenths = Math.floor(ms / 100);
+            const minutes = Math.floor(totalTenths / 600);
+            const seconds = Math.floor((totalTenths % 600) / 10);
+            const tenths = totalTenths % 10;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`;
+        }
+
+        function updateTimerDisplay() {
+            const elapsed = (performance.now() - timerStartMs) + penaltyMs;
+            document.getElementById('timerDisplay').textContent = formatTime(elapsed);
+        }
+
+        function startTimedSession() {
+            // Fresh board, then run the 3-2-1 countdown before the clock starts.
+            resetGame();
+            runCountdown(3, beginTimer);
+        }
+
+        function runCountdown(from, onDone) {
+            const overlay = document.getElementById('countdownOverlay');
+            const numberEl = document.getElementById('countdownNumber');
+            let n = from;
+
+            // Lock the board during the countdown so timing is fair.
+            setBoardLocked(true);
+            overlay.classList.add('show');
+            numberEl.textContent = n;
+            // restart the pulse animation
+            numberEl.style.animation = 'none';
+            void numberEl.offsetWidth;
+            numberEl.style.animation = '';
+
+            const tick = setInterval(() => {
+                n--;
+                if (n > 0) {
+                    numberEl.textContent = n;
+                    numberEl.style.animation = 'none';
+                    void numberEl.offsetWidth;
+                    numberEl.style.animation = '';
+                } else {
+                    clearInterval(tick);
+                    overlay.classList.remove('show');
+                    setBoardLocked(false);
+                    onDone();
+                }
+            }, 1000);
+        }
+
+        function beginTimer() {
+            timerActive = true;
+            penaltyMs = 0;
+            timerStartMs = performance.now();
+
+            const btn = document.getElementById('timerBtn');
+            btn.classList.add('running');
+            btn.textContent = '⏱️ Timing… (good luck!)';
+            btn.disabled = true;
+
+            updateTimerDisplay();
+            timerInterval = setInterval(updateTimerDisplay, 100);
+        }
+
+        function applyTimePenalty() {
+            if (!timerActive) return;
+            penaltyMs += WRONG_PENALTY_MS;
+            const display = document.getElementById('timerDisplay');
+            display.classList.add('penalty-flash');
+            setTimeout(() => display.classList.remove('penalty-flash'), 400);
+            updateTimerDisplay();
+        }
+
+        function stopTimer() {
+            if (!timerActive) return;
+            clearInterval(timerInterval);
+            timerInterval = null;
+            finalTimeMs = (performance.now() - timerStartMs) + penaltyMs;
+            timerActive = false;
+            updateTimerDisplay(); // already cleared, so show frozen value explicitly
+            document.getElementById('timerDisplay').textContent = formatTime(finalTimeMs);
+            resetTimerButton();
+        }
+
+        function resetTimerButton() {
+            const btn = document.getElementById('timerBtn');
+            btn.classList.remove('running');
+            btn.textContent = '⏱️ Start Timed Session';
+            btn.disabled = false;
+        }
+
+        function clearTimer() {
+            // Abort any running/countdown state without recording a final time.
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+            timerActive = false;
+            penaltyMs = 0;
+            finalTimeMs = 0;
+            document.getElementById('countdownOverlay').classList.remove('show');
+            document.getElementById('timerDisplay').textContent = '00:00.0';
+            resetTimerButton();
+        }
+
+        function setBoardLocked(locked) {
+            const container = document.getElementById('flagsContainer');
+            const names = document.getElementById('namesContainer');
+            [container, names].forEach(el => {
+                el.style.pointerEvents = locked ? 'none' : '';
+            });
         }
 
         function initGame() {
@@ -880,6 +1087,7 @@
                     selectedName = null;
 
                     if (remainingCountries.length === 0) {
+                        stopTimer();
                         setTimeout(showCompletion, 500);
                     } else {
                         // Re-render to fill gaps, but maintain the original shuffle order
@@ -890,6 +1098,7 @@
                 // Wrong match - flash red
                 wrongGuesses++;
                 updateScores();
+                applyTimePenalty();
                 
                 // Flash background red
                 document.body.classList.add('wrong-flash');
@@ -916,6 +1125,15 @@
             const totalCountries = getFilteredCountries().length;
             document.getElementById('totalCountries').textContent = totalCountries;
             document.getElementById('finalWrong').textContent = wrongGuesses;
+
+            const timeLine = document.getElementById('finalTimeLine');
+            if (finalTimeMs > 0) {
+                document.getElementById('finalTime').textContent = formatTime(finalTimeMs);
+                timeLine.style.display = '';
+            } else {
+                timeLine.style.display = 'none';
+            }
+
             document.getElementById('completionMessage').classList.add('show');
             confetti();
         }
@@ -980,6 +1198,7 @@
 
         function resetGame() {
             document.getElementById('completionMessage').classList.remove('show');
+            clearTimer();
             selectedFlag = null;
             selectedName = null;
             initGame();
