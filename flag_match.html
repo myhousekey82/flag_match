@@ -553,7 +553,9 @@
         <div class="completion-emoji">🎉</div>
         <h2>Perfect Match!</h2>
         <p>You matched all <span id="totalCountries">0</span> countries!</p>
-        <p id="finalTimeLine" style="display:none;"><strong>⏱️ Time:</strong> <span id="finalTime">00:00.0</span></p>
+        <p id="finalTimeLine" style="display:none;"><strong>⏱️ Completion Time:</strong> <span id="finalTime">00:00.0</span></p>
+        <p id="finalPenaltyLine" style="display:none;"><strong>⚠️ Penalty Time:</strong> <span id="finalPenalty">00:00.0</span></p>
+        <p id="finalTotalLine" style="display:none;"><strong>🏁 Total Time:</strong> <span id="finalTotal">00:00.0</span></p>
         <p><strong>Wrong Guesses:</strong> <span id="finalWrong">0</span></p>
         <button onclick="resetGame()">Play Again</button>
     </div>
@@ -789,6 +791,7 @@
         let timerStartMs = 0;          // performance.now() at countdown end
         let penaltyMs = 0;             // accumulated wrong-match penalties
         let timerInterval = null;      // setInterval handle for live ticking
+        let baseTimeMs = 0;            // raw elapsed at finish, excluding penalties
         let finalTimeMs = 0;           // total elapsed (incl. penalties) at finish; ready for future leaderboard
 
         function toggleContinent(continent) {
@@ -897,7 +900,8 @@
             if (!timerActive) return;
             clearInterval(timerInterval);
             timerInterval = null;
-            finalTimeMs = (performance.now() - timerStartMs) + penaltyMs;
+            baseTimeMs = performance.now() - timerStartMs;
+            finalTimeMs = baseTimeMs + penaltyMs;
             timerActive = false;
             updateTimerDisplay(); // already cleared, so show frozen value explicitly
             document.getElementById('timerDisplay').textContent = formatTime(finalTimeMs);
@@ -916,6 +920,7 @@
             if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
             timerActive = false;
             penaltyMs = 0;
+            baseTimeMs = 0;
             finalTimeMs = 0;
             document.getElementById('countdownOverlay').classList.remove('show');
             document.getElementById('timerDisplay').textContent = '00:00.0';
@@ -1127,11 +1132,19 @@
             document.getElementById('finalWrong').textContent = wrongGuesses;
 
             const timeLine = document.getElementById('finalTimeLine');
+            const penaltyLine = document.getElementById('finalPenaltyLine');
+            const totalLine = document.getElementById('finalTotalLine');
             if (finalTimeMs > 0) {
-                document.getElementById('finalTime').textContent = formatTime(finalTimeMs);
+                document.getElementById('finalTime').textContent = formatTime(baseTimeMs);
+                document.getElementById('finalPenalty').textContent = formatTime(penaltyMs);
+                document.getElementById('finalTotal').textContent = formatTime(finalTimeMs);
                 timeLine.style.display = '';
+                penaltyLine.style.display = '';
+                totalLine.style.display = '';
             } else {
                 timeLine.style.display = 'none';
+                penaltyLine.style.display = 'none';
+                totalLine.style.display = 'none';
             }
 
             document.getElementById('completionMessage').classList.add('show');
