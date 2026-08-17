@@ -187,6 +187,7 @@
         .nav-bar {
             display: flex;
             justify-content: center;
+            gap: 12px;
             margin-bottom: 20px;
         }
 
@@ -603,18 +604,28 @@
 
     <!-- Title / menu screen -->
     <div class="title-screen" id="titleScreen">
-        <h1>🌍 Geography Challenge</h1>
+        <h1>🌍 World Geography Challenge</h1>
         <p>Choose an exercise to begin</p>
         <div class="exercise-choices">
+            <button class="exercise-card" onclick="chooseExercise('capital')">
+                <span class="card-emoji">🏙️</span>
+                <span class="card-title">Capital City Match</span>
+                <span class="card-desc">Match each capital city to its country</span>
+            </button>
             <button class="exercise-card" onclick="chooseExercise('flag')">
-                <span class="card-emoji">🏴</span>
+                <span class="card-emoji">🚩</span>
                 <span class="card-title">Flag Match</span>
                 <span class="card-desc">Match each flag to its country</span>
             </button>
-            <button class="exercise-card" onclick="chooseExercise('capital')">
-                <span class="card-emoji">🏙️</span>
-                <span class="card-title">Capital Match</span>
-                <span class="card-desc">Match each capital city to its country</span>
+            <button class="exercise-card" onclick="chooseExercise('stateCapital')">
+                <span class="card-emoji">🏛️</span>
+                <span class="card-title">U.S. State Capital Match</span>
+                <span class="card-desc">Match each capital city to its state</span>
+            </button>
+            <button class="exercise-card" onclick="chooseExercise('stateFlag')">
+                <span class="card-emoji">🇺🇸</span>
+                <span class="card-title">U.S. State Flag Match</span>
+                <span class="card-desc">Match each flag to its state</span>
             </button>
         </div>
     </div>
@@ -632,9 +643,10 @@
 
     <div class="nav-bar">
         <button class="back-btn" onclick="backToMenu()">← Back to Menu</button>
+        <button class="back-btn" onclick="restartExercise()">🔄 Restart</button>
     </div>
 
-    <div class="continent-selector">
+    <div class="continent-selector" id="continentSelector">
         <button class="continent-btn active" data-continent="Africa" onclick="toggleContinent('Africa')">🌍 Africa</button>
         <button class="continent-btn active" data-continent="Asia" onclick="toggleContinent('Asia')">🌏 Asia</button>
         <button class="continent-btn active" data-continent="Europe" onclick="toggleContinent('Europe')">🇪🇺 Europe</button>
@@ -661,7 +673,7 @@
                 <div class="items-container flags-grid" id="flagsContainer"></div>
             </div>
             <div class="column">
-                <div class="column-title">📍 COUNTRIES</div>
+                <div class="column-title" id="rightColumnTitle">📍 COUNTRIES</div>
                 <div class="items-container names-grid" id="namesContainer"></div>
             </div>
         </div>
@@ -674,7 +686,7 @@
     <div class="completion-message" id="completionMessage">
         <div class="completion-emoji">🎉</div>
         <h2>Perfect Match!</h2>
-        <p>You matched all <span id="totalCountries">0</span> countries!</p>
+        <p>You matched all <span id="totalCountries">0</span> <span id="totalItemsLabel">countries</span>!</p>
         <p id="finalTimeLine" style="display:none;"><strong>⏱️ Completion Time:</strong> <span id="finalTime">00:00.0</span></p>
         <p id="finalPenaltyLine" style="display:none;"><strong>⚠️ Penalty Time:</strong> <span id="finalPenalty">00:00.0</span></p>
         <p id="finalTotalLine" style="display:none;"><strong>🏁 Total Time:</strong> <span id="finalTotal">00:00.0</span></p>
@@ -891,6 +903,61 @@
             { code: 'zw', name: 'Zimbabwe', continent: 'Africa', capital: 'Harare' }
         ];
 
+        // U.S. state data (shared by the two U.S. state exercises).
+        // Flag images come from flagcdn using ISO 3166-2 subdivision codes (us-xx).
+        const stateFlags = [
+            { code: 'us-al', name: 'Alabama', capital: 'Montgomery' },
+            { code: 'us-ak', name: 'Alaska', capital: 'Juneau' },
+            { code: 'us-az', name: 'Arizona', capital: 'Phoenix' },
+            { code: 'us-ar', name: 'Arkansas', capital: 'Little Rock' },
+            { code: 'us-ca', name: 'California', capital: 'Sacramento' },
+            { code: 'us-co', name: 'Colorado', capital: 'Denver' },
+            { code: 'us-ct', name: 'Connecticut', capital: 'Hartford' },
+            { code: 'us-de', name: 'Delaware', capital: 'Dover' },
+            { code: 'us-fl', name: 'Florida', capital: 'Tallahassee' },
+            { code: 'us-ga', name: 'Georgia', capital: 'Atlanta' },
+            { code: 'us-hi', name: 'Hawaii', capital: 'Honolulu' },
+            { code: 'us-id', name: 'Idaho', capital: 'Boise' },
+            { code: 'us-il', name: 'Illinois', capital: 'Springfield' },
+            { code: 'us-in', name: 'Indiana', capital: 'Indianapolis' },
+            { code: 'us-ia', name: 'Iowa', capital: 'Des Moines' },
+            { code: 'us-ks', name: 'Kansas', capital: 'Topeka' },
+            { code: 'us-ky', name: 'Kentucky', capital: 'Frankfort' },
+            { code: 'us-la', name: 'Louisiana', capital: 'Baton Rouge' },
+            { code: 'us-me', name: 'Maine', capital: 'Augusta' },
+            { code: 'us-md', name: 'Maryland', capital: 'Annapolis' },
+            { code: 'us-ma', name: 'Massachusetts', capital: 'Boston' },
+            { code: 'us-mi', name: 'Michigan', capital: 'Lansing' },
+            { code: 'us-mn', name: 'Minnesota', capital: 'Saint Paul' },
+            { code: 'us-ms', name: 'Mississippi', capital: 'Jackson' },
+            { code: 'us-mo', name: 'Missouri', capital: 'Jefferson City' },
+            { code: 'us-mt', name: 'Montana', capital: 'Helena' },
+            { code: 'us-ne', name: 'Nebraska', capital: 'Lincoln' },
+            { code: 'us-nv', name: 'Nevada', capital: 'Carson City' },
+            { code: 'us-nh', name: 'New Hampshire', capital: 'Concord' },
+            { code: 'us-nj', name: 'New Jersey', capital: 'Trenton' },
+            { code: 'us-nm', name: 'New Mexico', capital: 'Santa Fe' },
+            { code: 'us-ny', name: 'New York', capital: 'Albany' },
+            { code: 'us-nc', name: 'North Carolina', capital: 'Raleigh' },
+            { code: 'us-nd', name: 'North Dakota', capital: 'Bismarck' },
+            { code: 'us-oh', name: 'Ohio', capital: 'Columbus' },
+            { code: 'us-ok', name: 'Oklahoma', capital: 'Oklahoma City' },
+            { code: 'us-or', name: 'Oregon', capital: 'Salem' },
+            { code: 'us-pa', name: 'Pennsylvania', capital: 'Harrisburg' },
+            { code: 'us-ri', name: 'Rhode Island', capital: 'Providence' },
+            { code: 'us-sc', name: 'South Carolina', capital: 'Columbia' },
+            { code: 'us-sd', name: 'South Dakota', capital: 'Pierre' },
+            { code: 'us-tn', name: 'Tennessee', capital: 'Nashville' },
+            { code: 'us-tx', name: 'Texas', capital: 'Austin' },
+            { code: 'us-ut', name: 'Utah', capital: 'Salt Lake City' },
+            { code: 'us-vt', name: 'Vermont', capital: 'Montpelier' },
+            { code: 'us-va', name: 'Virginia', capital: 'Richmond' },
+            { code: 'us-wa', name: 'Washington', capital: 'Olympia' },
+            { code: 'us-wv', name: 'West Virginia', capital: 'Charleston' },
+            { code: 'us-wi', name: 'Wisconsin', capital: 'Madison' },
+            { code: 'us-wy', name: 'Wyoming', capital: 'Cheyenne' }
+        ];
+
         // Helper function to get flag image URL
         function getFlagUrl(country) {
             if (country.customFlag) {
@@ -899,7 +966,23 @@
             return `https://flagcdn.com/w640/${country.code}.png`;
         }
 
-        let gameMode = 'flag'; // 'flag' or 'capital'
+        // ---------- Exercise dataset helpers ----------
+        // Which exercises are US-state based (no continent filter, 50 items).
+        function isStateMode() {
+            return gameMode === 'stateFlag' || gameMode === 'stateCapital';
+        }
+
+        // Which exercises show flags in the left column (vs. capital text).
+        function isFlagLayout() {
+            return gameMode === 'flag' || gameMode === 'stateFlag';
+        }
+
+        // The full data array backing the current exercise.
+        function activeDataset() {
+            return isStateMode() ? stateFlags : allCountries;
+        }
+
+        let gameMode = 'flag'; // 'flag' | 'capital' | 'stateFlag' | 'stateCapital'
         let selectedContinents = ['Africa', 'Asia', 'Europe', 'North America', 'South America', 'Oceania'];
         let selectedFlag = null;
         let selectedName = null;
@@ -910,7 +993,8 @@
 
         // Timer state
         const WRONG_PENALTY_MS = 5000; // +5s per wrong match
-        let timerActive = false;       // a timed session is in progress
+        let timerActive = false;       // a timed session is in progress (clock running)
+        let timerArmed = false;        // a timed session is armed (countdown or running)
         let timerStartMs = 0;          // performance.now() at countdown end
         let penaltyMs = 0;             // accumulated wrong-match penalties
         let timerInterval = null;      // setInterval handle for live ticking
@@ -925,15 +1009,32 @@
             const title = document.getElementById('headerTitle');
             const subtitle = document.getElementById('headerSubtitle');
             const leftTitle = document.getElementById('leftColumnTitle');
+            const rightTitle = document.getElementById('rightColumnTitle');
             if (mode === 'flag') {
                 title.textContent = '🌍 Flag Match Challenge';
                 subtitle.textContent = 'Match each flag to its country!';
                 leftTitle.textContent = '🏴 FLAGS';
-            } else {
+                rightTitle.textContent = '📍 COUNTRIES';
+            } else if (mode === 'capital') {
                 title.textContent = '🏙️ Capital Match Challenge';
                 subtitle.textContent = 'Match each capital city to its country!';
                 leftTitle.textContent = '🏙️ CAPITALS';
+                rightTitle.textContent = '📍 COUNTRIES';
+            } else if (mode === 'stateFlag') {
+                title.textContent = '🇺🇸 U.S. State Flag Match';
+                subtitle.textContent = 'Match each flag to its state!';
+                leftTitle.textContent = '🏴 STATE FLAGS';
+                rightTitle.textContent = '📍 STATES';
+            } else { // stateCapital
+                title.textContent = '🏛️ U.S. State Capital Match';
+                subtitle.textContent = 'Match each capital city to its state!';
+                leftTitle.textContent = '🏛️ CAPITALS';
+                rightTitle.textContent = '📍 STATES';
             }
+
+            // The continent filter only applies to the world exercises.
+            document.getElementById('continentSelector').style.display =
+                isStateMode() ? 'none' : '';
 
             // Swap screens and start a fresh board for this exercise
             document.getElementById('titleScreen').style.display = 'none';
@@ -977,6 +1078,9 @@
         }
 
         function getFilteredCountries() {
+            if (isStateMode()) {
+                return [...stateFlags];
+            }
             return allCountries.filter(c => selectedContinents.includes(c.continent));
         }
 
@@ -996,8 +1100,21 @@
 
         function startTimedSession() {
             // Fresh board, then run the 3-2-1 countdown before the clock starts.
+            timerArmed = true;
             resetGame();
             runCountdown(3, beginTimer);
+        }
+
+        function restartExercise() {
+            // If a timed session is armed (counting down or running), restart it
+            // fresh with a new countdown and clock. Otherwise just reset the board.
+            const wasTimed = timerArmed;
+            clearTimer();
+            if (wasTimed) {
+                startTimedSession();
+            } else {
+                resetGame();
+            }
         }
 
         function runCountdown(from, onDone) {
@@ -1060,6 +1177,7 @@
             baseTimeMs = performance.now() - timerStartMs;
             finalTimeMs = baseTimeMs + penaltyMs;
             timerActive = false;
+            timerArmed = false;
             updateTimerDisplay(); // already cleared, so show frozen value explicitly
             document.getElementById('timerDisplay').textContent = formatTime(finalTimeMs);
             resetTimerButton();
@@ -1076,6 +1194,7 @@
             // Abort any running/countdown state without recording a final time.
             if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
             timerActive = false;
+            timerArmed = false;
             penaltyMs = 0;
             baseTimeMs = 0;
             finalTimeMs = 0;
@@ -1147,7 +1266,7 @@
                 const item = document.createElement('div');
                 item.dataset.name = country.name;
 
-                if (gameMode === 'flag') {
+                if (isFlagLayout()) {
                     item.className = 'flag-item';
                     const flagImg = document.createElement('img');
                     flagImg.src = getFlagUrl(country);
@@ -1186,7 +1305,7 @@
 
         // The left column holds flags in flag mode and capitals in capital mode.
         function leftItemSelector() {
-            return gameMode === 'flag' ? '.flag-item' : '.capital-item';
+            return isFlagLayout() ? '.flag-item' : '.capital-item';
         }
 
         function selectFlag(name) {
@@ -1297,6 +1416,8 @@
         function showCompletion() {
             const totalCountries = getFilteredCountries().length;
             document.getElementById('totalCountries').textContent = totalCountries;
+            document.getElementById('totalItemsLabel').textContent =
+                isStateMode() ? 'states' : 'countries';
             document.getElementById('finalWrong').textContent = wrongGuesses;
 
             const timeLine = document.getElementById('finalTimeLine');
